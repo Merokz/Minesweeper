@@ -1,1 +1,372 @@
+<!DOCTYPE html>
+<html>
 
+<head>
+    <title>Minesweeper</title>
+</head>
+
+<body>
+    <div id="minesweeper">
+        <div id="settings">
+            <div id="settings-difficulty">
+                <select id="difficulty" >
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard" selected="selected">Hard</option>
+                </select>
+            </div>
+            <div id="settings-values">
+                <div id="settings-values-width">
+                    <label for="width">Width</label>
+                    <input type="number" id="board-size-x" value="24" min="1" max="100">
+                </div>
+                <div id="settings-values-height">
+                    <label for="height">Height</label>
+                    <input type="number" id="board-size-y" value="20" min="1" max="100">
+                </div>
+                <div id="settings-values-mine-count">
+                    <label for="mine-count">Mine Count</label>
+                    <input type="number" id="num-mines" value="99" min="1" max="100">
+                </div>
+            </div>
+            <div id="settings-buttons">
+                <button id="settings-buttons-start">Start</button>
+                <button id="settings-buttons-reset">Reset</button>
+            </div>
+        </div>
+        <div id="board">
+            <div id="board-stats">
+            </div>
+            <div id="board-game">
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+
+    //gamelogic for minesweeper
+    var game = {
+        board: [],
+        boardSizeX: 0,
+        boardSizeY: 0,
+        numMines: 0,
+
+        //initialize game
+        init: function (boardSizeX, boardSizeY, numMines) {
+            this.boardSizeX = boardSizeX;
+            this.boardSizeY = boardSizeY;
+            this.numMines = numMines;
+            this.createBoard();
+            this.placeMines();
+            this.placeNumbers();
+        },
+
+        //create board
+        createBoard: function () {
+            for (var i = 0; i < this.boardSizeX; i++) {
+                this.board[i] = [];
+                for (var j = 0; j < this.boardSizeY; j++) {
+                    this.board[i][j] = {
+                        x: i,
+                        y: j,
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        numMinesAround: 0
+                    };
+                }
+            }
+        },
+
+        //place mines
+        placeMines: function () {
+            var minesPlaced = 0;
+            while (minesPlaced < this.numMines) {
+                var randomX = Math.floor(Math.random() * this.boardSizeX);
+                var randomY = Math.floor(Math.random() * this.boardSizeY);
+                if (!this.board[randomX][randomY].isMine) {
+                    this.board[randomX][randomY].isMine = true;
+                    minesPlaced++;
+                }
+            }
+        },
+
+        //place numbers
+        placeNumbers: function () {
+            for (var i = 0; i < this.boardSizeX; i++) {
+                for (var j = 0; j < this.boardSizeY; j++) {
+                    var currentSquare = this.board[i][j];
+                    if (!currentSquare.isMine) {
+                        var numMines = 0;
+                        var neighbors = this.getNeighbors(currentSquare);
+                        for (var k = 0; k < neighbors.length; k++) {
+                            if (neighbors[k].isMine) {
+                                numMines++;
+                            }
+                        }
+                        currentSquare.numMinesAround = numMines;
+                    }
+                }
+            }
+        },
+
+        //get neighbors
+        getNeighbors: function (square) {
+            var neighbors = [];
+            for (var i = -1; i <= 1; i++) {
+                for (var j = -1; j <= 1; j++) {
+                    if (i === 0 && j === 0) {
+                        continue;
+                    }
+                    var neighborX = square.x + i;
+                    var neighborY = square.y + j;
+                    if (neighborX >= 0 && neighborX < this.boardSizeX && neighborY >= 0 && neighborY < this.boardSizeY) {
+                        neighbors.push(this.board[neighborX][neighborY]);
+                    }
+                }
+            }
+            return neighbors;
+        },
+
+        //reveal square
+        revealSquare: function (square) {
+            square.isRevealed = true;
+            if (square.numMinesAround === 0) {
+                var neighbors = this.getNeighbors(square);
+                for (var i = 0; i < neighbors.length; i++) {
+                    if (!neighbors[i].isRevealed) {
+                        this.revealSquare(neighbors[i]);
+                    }
+                }
+            }
+        },
+
+        //flag square
+        flagSquare: function (square) {
+            square.isFlagged = true;
+        },
+
+        //unflag square
+        unflagSquare: function (square) {
+            square.isFlagged = false;
+        },
+
+        //check if game is over
+        isGameOver: function () {
+            for (var i = 0; i < this.boardSizeX; i++) {
+                for (var j = 0; j < this.boardSizeY; j++) {
+                    var currentSquare = this.board[i][j];
+                    if (currentSquare.isMine && currentSquare.isRevealed) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
+
+        //check if game is won
+        isGameWon: function () {
+            for (var i = 0; i < this.boardSizeX; i++) {
+                for (var j = 0; j < this.boardSizeY; j++) {
+                    var currentSquare = this.board[i][j];
+                    if (!currentSquare.isMine && !currentSquare.isRevealed) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+    };
+
+    //controller for minesweeper
+    var controller = {
+        init: function (boardSizeX, boardSizeY, numMines) {
+            game.init(boardSizeX, boardSizeY, numMines);
+            view.init();
+            timer.init();
+        },
+
+        revealSquare: function (square) {
+            game.revealSquare(square);
+            view.render();
+            if (game.isGameOver()) {
+                timer.stop();
+                alert("Game Over!");
+            } else if (game.isGameWon()) {
+                alert("You Win!");
+            }
+        },
+
+        flagSquare: function (square) {
+            game.flagSquare(square);
+            view.render();
+        },
+
+        unflagSquare: function (square) {
+            game.unflagSquare(square);
+            view.render();
+        }
+    };
+
+    //timer for minesweeper
+    var timer = {
+        time: 0,
+        interval: null,
+        init: function () {
+            //stop if already running
+            if (this.interval) {
+                this.stop();
+            }
+            this.interval = setInterval(function () {
+                timer.time++;
+                view.renderTimer();
+            }, 1000);
+        },
+        stop: function () {
+            clearInterval(this.interval);
+        },
+        reset: function () {
+            this.stop();
+            this.time = 0;
+            view.renderTimer();
+        }
+    };
+
+    //view for minesweeper
+    //use table to display board
+    var view = {
+        init: function () {
+            this.board = document.getElementById("board-game");
+            this.boardStats = document.getElementById("board-stats");
+            this.render();
+        },
+
+        render: function () {
+            this.board.innerHTML = "";
+            var table = document.createElement("table");
+            for (var i = 0; i < game.boardSizeX; i++) {
+                var row = document.createElement("tr");
+                for (var j = 0; j < game.boardSizeY; j++) {
+                    var square = game.board[i][j];
+                    var cell = document.createElement("td");
+                    cell.dataset.x = square.x;
+                    cell.dataset.y = square.y;
+                    cell.addEventListener("click", function () {
+                        controller.revealSquare(game.board[this.dataset.x][this.dataset.y]);
+                    });
+                    cell.addEventListener("contextmenu", function (e) {
+                        e.preventDefault();
+                        if (game.board[this.dataset.x][this.dataset.y].isFlagged) {
+                            controller.unflagSquare(game.board[this.dataset.x][this.dataset.y]);
+                        } else {
+                            controller.flagSquare(game.board[this.dataset.x][this.dataset.y]);
+                        }
+                    });
+                    if (square.isRevealed) {
+                        if (square.isMine) {
+                            cell.classList.add("mine");
+                        } else {
+                            cell.classList.add("revealed");
+                            if (square.numMinesAround > 0) {
+                                cell.innerHTML = square.numMinesAround;
+                            }
+                        }
+                    } else if (square.isFlagged) {
+                        cell.classList.add("flagged");
+                    }
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+            this.board.appendChild(table);
+        },
+
+        renderTimer: function () {
+            this.boardStats.innerHTML = "Time: " + timer.time;
+        }
+    };
+
+    //using the div minesweeper to set up the game
+    var settings = {
+        init: function () {
+            this.boardSizeX = document.getElementById("board-size-x");
+            this.boardSizeY = document.getElementById("board-size-y");
+            this.numMines = document.getElementById("num-mines");
+            this.startButton = document.getElementById("settings-buttons-start");
+            this.startButton.addEventListener("click", function () {
+                controller.init(settings.boardSizeX.value, settings.boardSizeY.value, settings.numMines.value);
+            });
+        },
+
+        updateBoxes: function (x, y, mines) {
+            this.boardSizeX = x;
+            this.boardSizeY = y;
+            this.numMines = mines;
+            document.getElementById("board-size-x").value = x;
+            document.getElementById("board-size-y").value = y;
+            document.getElementById("num-mines").value = mines;
+
+        }
+    };
+
+    var difficulty = {
+        //if document.getElementById("difficulty").value changes, update the settings
+        init: function () {
+            this.difficulty = document.getElementById("difficulty");
+            this.difficulty.addEventListener("change", function () {
+                //use the google minesweeper difficulty
+                if (difficulty.difficulty.value == "beginner") {
+                    settings.updateBoxes(10, 8, 10);
+                } else if (difficulty.difficulty.value == "intermediate") {
+                    settings.updateBoxes(14, 18, 40);
+                } else if (difficulty.difficulty.value == "expert") {
+                    settings.updateBoxes(24, 20, 99);
+                }
+            });
+        }
+    };
+
+    settings.init();
+    difficulty.init();
+
+
+
+
+</script>
+
+<style>
+    
+        #board-game {
+            width: fit-content;
+            height: fit-content;
+            margin: 0 auto;
+        }
+    
+        #board-game table {
+            border-collapse: collapse;
+        }
+    
+        #board-game td {
+            width: 50px;
+            height: 50px;
+            border: 1px solid black;
+            text-align: center;
+            vertical-align: middle;
+            cursor: pointer;
+        }
+    
+        #board-game td.mine {
+            background-color: red;
+        }
+    
+        #board-game td.revealed {
+            background-color: lightgray;
+        }
+    
+        #board-game td.flagged {
+            background-color: yellow;
+        }
+
+</style>
+
+</html>
